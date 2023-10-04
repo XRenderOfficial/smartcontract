@@ -6,7 +6,6 @@ import "@openzeppelin/contracts/utils/math/SafeMath.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 
-
 contract XRenderIco is Ownable, ReentrancyGuard {
     using SafeMath for uint;
     // time epoch
@@ -15,12 +14,12 @@ contract XRenderIco is Ownable, ReentrancyGuard {
     uint public timeStartClaim = 1707464800;
     address public xrenderAddress = 0x617b76412bd9f3f80fe87d1533dc7017defa8ad1;
     // 10$
-    uint256 minimumToBuy = 33333 * 10 ** 18;
+    uint256 minimumToBuy = 33_333 * 10 ** 18;
     // 5000$
-    uint256 maximumToBuy = 16666666 * 10 ** 18;
+    uint256 maximumToBuy = 16_666_666 * 10 ** 18;
     address public constant etherAddress =
         address(0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE);
-    uint public remaining = 415000000 * 10 ** 18;
+    uint public remaining = 416_666_666 * 10 ** 18;
 
     mapping(address => uint) public userAmount;
     mapping(address => bool) public userClaimed;
@@ -36,68 +35,81 @@ contract XRenderIco is Ownable, ReentrancyGuard {
         uint zoom;
     }
 
-    constructor() Ownable() {}
+    constructor(address owner) Ownable() {
+        transferOwnership(owner);
+    }
 
-    function buyIcoWithEther(uint256 amount) external payable nonReentrant {
+    function buyIcoWithEther(uint256 amountEther) external payable nonReentrant {
         require(accetpedToken[etherAddress].rate!= 0,"The token you are trying to use is not accepted.");
         require(
             block.timestamp >= timeStart && block.timestamp <= timeEnd,
             "The ICO has not started yet. Please come back after the ICO has opened."
         );
+        uint totalXrender = calculateXrenderAmount(etherAddress, amountEther);
+
         require(
-            amount >= minimumToBuy && amount <= maximumToBuy,
+            totalXrender >= minimumToBuy && totalXrender <= maximumToBuy,
             "The purchase amount is invalid. Please ensure the purchase amount is within the range of $10 to $5000."
         );
-        uint etherRequired = estimateValue(etherAddress, amount);
         require(
-            msg.value == etherRequired,
+            msg.value == amountEther,
             "Invalid value. Please enter a valid value."
         );
         require(
-            remaining - amount >= 0,
+            remaining - totalXrender >= 0,
             "Insufficient Xrender tokens to make this transaction."
         );
-        userAmount[msg.sender] += amount;
-        remaining -= amount;
-        emit UserBuyIco(msg.sender, amount);
+        userAmount[msg.sender] += totalXrender;
+        remaining -= totalXrender;
+        emit UserBuyIco(msg.sender, totalXrender);
     }
 
-    function estimateValue(address token, uint amount) public view returns (uint) {
+    function calculateValue(address token, uint amount) public view returns (uint) {
       return amount.mul(accetpedToken[token].rate).div(
                                 accetpedToken[token].zoom
                             );
     }
 
+    function calculateXrenderAmount(address token, uint tokenAmount) public view returns (uint) {
+      return tokenAmount.mul(accetpedToken[token].zoom).div(
+                                accetpedToken[token].rate
+                            );
+    }
+
+
     function buyIcoWithToken(
         address token,
-        uint256 amount
+        uint256 amountToken
     ) external nonReentrant {
         require(accetpedToken[token].rate!= 0,"The token you are trying to use is not accepted.");
         require(
             block.timestamp >= timeStart && block.timestamp <= timeEnd,
             "The ICO has not started yet. Please come back after the ICO has opened."
         );
+        uint totalXrender = calculateXrenderAmount(token, amountToken);
+
         require(
-            amount >= minimumToBuy && amount <= maximumToBuy,
+            totalXrender >= minimumToBuy && totalXrender <= maximumToBuy,
             "The purchase amount is invalid. Please ensure the purchase amount is within the range of $10 to $5000."
         );
   
-        
+        require(
+            remaining - totalXrender >= 0,
+            "Insufficient Xrender tokens to make this transaction."
+        );
+
         require(
             /// need to approval first
             IERC20(token).transferFrom(
                 msg.sender,
                 address(this),
-                estimateValue(token, amount)
+                amountToken
             ),
             "Invalid value. Please enter a valid value."
         );
-        require(
-            remaining - amount >= 0,
-            "Insufficient Xrender tokens to make this transaction."
-        );
-        userAmount[msg.sender] += amount;
-        emit UserBuyIco(msg.sender, amount);
+        remaining -= totalXrender;
+        userAmount[msg.sender] += totalXrender;
+        emit UserBuyIco(msg.sender, totalXrender);
     }
 
     function withdraw(address token) external onlyOwner {
